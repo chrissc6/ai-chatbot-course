@@ -3,4 +3,7 @@ export default defineNuxtConfig({
   modules: ["@nuxtjs/tailwindcss", "@vueuse/nuxt"],
   ssr: false,
   compatibilityDate: "2024-12-10",
+  runtimeConfig: {
+    openaiApiKey: process.env.NUXT_OPENAI_API_KEY,
+  },
 });
