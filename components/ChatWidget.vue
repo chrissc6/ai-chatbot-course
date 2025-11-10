@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { $fetch } from "ofetch";
 import type { Message, User } from "@/types";
 
 const me = ref<User>({
@@ -18,10 +19,40 @@ const messages = ref<Message[]>([]);
 
 const usersTyping = ref<User[]>([]);
 
+type ChatCompletionResponse = {
+  id: string;
+  choices: {
+    message?: {
+      content?: string | null;
+    };
+  }[];
+};
+
 // send messages to Chat API here
 // and in the empty function below
 
-async function handleNewMessage(message: Message) {}
+async function handleNewMessage(message: Message) {
+  messages.value.push(message);
+  usersTyping.value.push(bot.value);
+  const res = await $fetch<ChatCompletionResponse>("/api/ai", {
+    method: "POST",
+    body: {
+      messages: [{ role: "user", content: message.text }],
+    },
+  });
+
+  const aiContent = res.choices[0]?.message?.content;
+  if (!aiContent) return;
+
+  const msg = {
+    id: res.id,
+    userId: bot.value.id,
+    createdAt: new Date(),
+    text: aiContent,
+  };
+  messages.value.push(msg);
+  usersTyping.value = [];
+}
 </script>
 <template>
   <ChatBox
