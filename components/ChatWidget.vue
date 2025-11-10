@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { $fetch } from "ofetch";
 import type { Message, User } from "@/types";
+import { getChatLimits } from "@/utils/chatLimits";
 
 const me = ref<User>({
   id: "user",
@@ -15,16 +16,9 @@ const bot = ref<User>({
 
 const users = computed(() => [me.value, bot.value]);
 
-const messageLimits = {
-  total: 20,
-  inputs: 10,
-  outputs: 10,
-};
-const tokenLimits = {
-  total: 50,
-  inputs: 25,
-  outputs: 25,
-};
+const activeModel = "gpt-4o-mini";
+const { messages: messageLimits, tokens: tokenLimits } =
+  getChatLimits(activeModel);
 
 const messages = ref<Message[]>([]);
 const usersTyping = ref<User[]>([]);
@@ -54,7 +48,9 @@ const tokensExceeded = computed(
     tokenUsage.inputs >= tokenLimits.inputs ||
     tokenUsage.outputs >= tokenLimits.outputs
 );
-const chatLocked = computed(() => messagesExceeded.value || tokensExceeded.value);
+const chatLocked = computed(
+  () => messagesExceeded.value || tokensExceeded.value
+);
 
 type ChatCompletionResponse = {
   id: string;
@@ -96,6 +92,7 @@ async function handleNewMessage(message: Message) {
   const res = await $fetch<ChatCompletionResponse>("/api/ai", {
     method: "POST",
     body: {
+      model: activeModel,
       messages: chatHistory,
       messageCounts: {
         total: totalMessages.value,
@@ -116,10 +113,15 @@ async function handleNewMessage(message: Message) {
     tokenUsage.outputs += res.usage.completion_tokens ?? 0;
     tokenUsage.total += res.usage.total_tokens ?? 0;
   }
+  if (tokensExceeded.value) {
+    usersTyping.value = [];
+    return;
+  }
 
   const canAddAssistantMessage =
     totalMessages.value + 1 <= messageLimits.total &&
-    totalOutputMessages.value + 1 <= messageLimits.outputs;
+    totalOutputMessages.value + 1 <= messageLimits.outputs &&
+    !tokensExceeded.value;
 
   if (!canAddAssistantMessage) {
     usersTyping.value = [];

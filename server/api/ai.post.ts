@@ -3,6 +3,7 @@ import {
   OpenAIApi,
   type ChatCompletionRequestMessage,
 } from "openai";
+import { getChatLimits } from "@/utils/chatLimits";
 
 export default defineEventHandler(async (event) => {
   const { openaiApiKey } = useRuntimeConfig();
@@ -20,6 +21,7 @@ export default defineEventHandler(async (event) => {
   const openai = new OpenAIApi(configuration);
 
   const body = await readBody<{
+    model?: string;
     messages?: ChatCompletionRequestMessage[];
     temperature?: number;
     messageCounts?: {
@@ -29,15 +31,22 @@ export default defineEventHandler(async (event) => {
     };
   }>(event);
 
+  const model = body?.model ?? "gpt-4o-mini";
+  const { tokens: tokenLimits, messages: messageLimits } = getChatLimits(model);
+
   const completion = await openai.createChatCompletion({
-    model: "gpt-3.5-turbo",
+    model,
     messages: body?.messages ?? [],
     temperature: body?.temperature ?? 1,
+    max_tokens: tokenLimits.outputs,
   });
 
   console.log(completion.data.choices[0].message);
   if (body?.messageCounts) {
-    console.debug("Message counts", body.messageCounts);
+    console.debug("Message counts", {
+      counts: body.messageCounts,
+      limits: messageLimits,
+    });
   }
 
   return completion.data;
