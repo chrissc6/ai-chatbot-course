@@ -34,17 +34,23 @@ type ChatCompletionResponse = {
 async function handleNewMessage(message: Message) {
   messages.value.push(message);
   usersTyping.value.push(bot.value);
+
+  const chatHistory = messages.value.map((msg: Message) => ({
+    role: msg.userId === me.value.id ? "user" : "assistant",
+    content: msg.text,
+  }));
+
   const res = await $fetch<ChatCompletionResponse>("/api/ai", {
     method: "POST",
     body: {
-      messages: [{ role: "user", content: message.text }],
+      messages: chatHistory,
     },
   });
 
   const aiContent = res.choices[0]?.message?.content;
   if (!aiContent) return;
 
-  const msg = {
+  const msg: Message = {
     id: res.id,
     userId: bot.value.id,
     createdAt: new Date(),
