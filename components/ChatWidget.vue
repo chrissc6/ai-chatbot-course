@@ -3,12 +3,12 @@ import type { Message, User } from "@/types";
 
 const me = ref<User>({
   id: "user",
-  avatar: "/avatar.jpg",
+  avatar: "/avatar.png",
   name: "You",
 });
 const bot = ref<User>({
   id: "assistant",
-  avatar: "/bot.jpg",
+  avatar: "/bot.png",
   name: "Botman",
 });
 
