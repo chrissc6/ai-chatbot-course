@@ -15,9 +15,46 @@ const bot = ref<User>({
 
 const users = computed(() => [me.value, bot.value]);
 
-const messages = ref<Message[]>([]);
+const messageLimits = {
+  total: 20,
+  inputs: 10,
+  outputs: 10,
+};
+const tokenLimits = {
+  total: 50,
+  inputs: 25,
+  outputs: 25,
+};
 
+const messages = ref<Message[]>([]);
 const usersTyping = ref<User[]>([]);
+const tokenUsage = reactive({
+  total: 0,
+  inputs: 0,
+  outputs: 0,
+});
+const totalMessages = computed(() => messages.value.length);
+const totalInputMessages = computed(
+  () =>
+    messages.value.filter((msg: Message) => msg.userId === me.value.id).length
+);
+const totalOutputMessages = computed(
+  () =>
+    messages.value.filter((msg: Message) => msg.userId === bot.value.id).length
+);
+const messagesExceeded = computed(
+  () =>
+    totalMessages.value >= messageLimits.total ||
+    totalInputMessages.value >= messageLimits.inputs ||
+    totalOutputMessages.value >= messageLimits.outputs
+);
+const tokensExceeded = computed(
+  () =>
+    tokenUsage.total >= tokenLimits.total ||
+    tokenUsage.inputs >= tokenLimits.inputs ||
+    tokenUsage.outputs >= tokenLimits.outputs
+);
+const chatLocked = computed(() => messagesExceeded.value || tokensExceeded.value);
 
 type ChatCompletionResponse = {
   id: string;
@@ -26,13 +63,29 @@ type ChatCompletionResponse = {
       content?: string | null;
     };
   }[];
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
 };
 
 // send messages to Chat API here
 // and in the empty function below
 
 async function handleNewMessage(message: Message) {
+  if (chatLocked.value) return;
+
   messages.value.push(message);
+
+  const noRoomForAssistant =
+    totalMessages.value + 1 > messageLimits.total ||
+    totalOutputMessages.value + 1 > messageLimits.outputs;
+
+  if (noRoomForAssistant) {
+    return;
+  }
+
   usersTyping.value.push(bot.value);
 
   const chatHistory = messages.value.map((msg: Message) => ({
@@ -44,11 +97,34 @@ async function handleNewMessage(message: Message) {
     method: "POST",
     body: {
       messages: chatHistory,
+      messageCounts: {
+        total: totalMessages.value,
+        inputs: totalInputMessages.value,
+        outputs: totalOutputMessages.value,
+      },
     },
   });
 
   const aiContent = res.choices[0]?.message?.content;
-  if (!aiContent) return;
+  if (!aiContent) {
+    usersTyping.value = [];
+    return;
+  }
+
+  if (res.usage) {
+    tokenUsage.inputs += res.usage.prompt_tokens ?? 0;
+    tokenUsage.outputs += res.usage.completion_tokens ?? 0;
+    tokenUsage.total += res.usage.total_tokens ?? 0;
+  }
+
+  const canAddAssistantMessage =
+    totalMessages.value + 1 <= messageLimits.total &&
+    totalOutputMessages.value + 1 <= messageLimits.outputs;
+
+  if (!canAddAssistantMessage) {
+    usersTyping.value = [];
+    return;
+  }
 
   const msg: Message = {
     id: res.id,
@@ -67,5 +143,6 @@ async function handleNewMessage(message: Message) {
     :messages="messages"
     @new-message="handleNewMessage"
     :usersTyping="usersTyping"
+    :chatLocked="chatLocked"
   />
 </template>

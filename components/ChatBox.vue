@@ -7,10 +7,12 @@ const props = withDefaults(
     users: User[];
     me: User;
     usersTyping?: User[];
+    chatLocked?: boolean;
   }>(),
   {
     // @ts-expect-error not sure why this is erroring, I'm 99% it's right 😬
     usersTyping: [],
+    chatLocked: false,
   }
 );
 
@@ -106,15 +108,21 @@ watch(
           ref="input"
           class="input w-full px-2 block"
           type="text"
-          placeholder="Type your message"
+          :disabled="chatLocked"
+          :placeholder="chatLocked ? 'Chat limit reached' : 'Type your message'"
           @keypress.enter="
-            $emit('newMessage', {
-              id: nanoid(),
-              userId: me.id,
-              createdAt: new Date(),
-              text: ($event.target as HTMLInputElement).value,
-            });
-            ($event.target as HTMLInputElement).value = '';
+            (() => {
+              if (chatLocked) return;
+              const value = ($event.target as HTMLInputElement).value;
+              if (!value.trim()) return;
+              $emit('newMessage', {
+                id: nanoid(),
+                userId: me.id,
+                createdAt: new Date(),
+                text: value,
+              });
+              ($event.target as HTMLInputElement).value = '';
+            })()
           "
         />
 

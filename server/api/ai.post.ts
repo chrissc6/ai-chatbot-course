@@ -22,6 +22,11 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<{
     messages?: ChatCompletionRequestMessage[];
     temperature?: number;
+    messageCounts?: {
+      total: number;
+      inputs: number;
+      outputs: number;
+    };
   }>(event);
 
   const completion = await openai.createChatCompletion({
@@ -31,6 +36,9 @@ export default defineEventHandler(async (event) => {
   });
 
   console.log(completion.data.choices[0].message);
+  if (body?.messageCounts) {
+    console.debug("Message counts", body.messageCounts);
+  }
 
   return completion.data;
 });
