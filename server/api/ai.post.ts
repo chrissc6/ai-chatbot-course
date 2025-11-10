@@ -1,4 +1,8 @@
-import { Configuration, OpenAIApi } from "openai";
+import {
+  Configuration,
+  OpenAIApi,
+  type ChatCompletionRequestMessage,
+} from "openai";
 
 export default defineEventHandler(async (event) => {
   const { openaiApiKey } = useRuntimeConfig();
@@ -15,9 +19,15 @@ export default defineEventHandler(async (event) => {
   });
   const openai = new OpenAIApi(configuration);
 
+  const body = await readBody<{
+    messages?: ChatCompletionRequestMessage[];
+    temperature?: number;
+  }>(event);
+
   const completion = await openai.createChatCompletion({
     model: "gpt-3.5-turbo",
-    messages: [{ role: "user", content: "Hello world" }],
+    messages: body?.messages ?? [],
+    temperature: body?.temperature ?? 1,
   });
 
   console.log(completion.data.choices[0].message);
